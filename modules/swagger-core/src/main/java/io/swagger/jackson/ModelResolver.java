@@ -240,176 +240,178 @@ public class ModelResolver extends AbstractModelConverter implements ModelConver
 
         List<Property> props = new ArrayList<Property>();
         for (BeanPropertyDefinition propDef : beanDesc.findProperties()) {
-            Property property = null;
-            String propName = propDef.getName();
-            Annotation[] annotations = null;
+            if (!isPropertyThrowable(propDef)) {
+                Property property = null;
+                String propName = propDef.getName();
+                Annotation[] annotations = null;
 
-            // hack to avoid clobbering properties with get/is names
-            // it's ugly but gets around https://github.com/swagger-api/swagger-core/issues/415
-            if (propDef.getPrimaryMember() != null) {
-                java.lang.reflect.Member member = propDef.getPrimaryMember().getMember();
-                if (member != null) {
-                    String altName = member.getName();
-                    if (altName != null) {
-                        final int length = altName.length();
-                        for (String prefix : Arrays.asList("get", "is")) {
-                            final int offset = prefix.length();
-                            if (altName.startsWith(prefix) && length > offset
-                                    && !Character.isUpperCase(altName.charAt(offset))) {
-                                propName = altName;
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-
-            PropertyMetadata md = propDef.getMetadata();
-
-            boolean hasSetter = false, hasGetter = false;
-            if (propDef.getSetter() == null) {
-                hasSetter = false;
-            } else {
-                hasSetter = true;
-            }
-            if (propDef.getGetter() != null) {
-                JsonProperty pd = propDef.getGetter().getAnnotation(JsonProperty.class);
-                if (pd != null) {
-                    hasGetter = true;
-                }
-            }
-            Boolean isReadOnly = null;
-            if (!hasSetter & hasGetter) {
-                isReadOnly = Boolean.TRUE;
-            } else {
-                isReadOnly = Boolean.FALSE;
-            }
-
-            final AnnotatedMember member = propDef.getPrimaryMember();
-
-            if (member != null && !propertiesToIgnore.contains(propName)) {
-                List<Annotation> annotationList = new ArrayList<Annotation>();
-                for (Annotation a : member.annotations()) {
-                    annotationList.add(a);
-                }
-
-                annotations = annotationList.toArray(new Annotation[annotationList.size()]);
-
-                ApiModelProperty mp = member.getAnnotation(ApiModelProperty.class);
-
-                JavaType propType = member.getType(beanDesc.bindingsForBeanType());
-
-                // allow override of name from annotation
-                if (mp != null && !mp.name().isEmpty()) {
-                    propName = mp.name();
-                }
-
-                if (mp != null && !mp.dataType().isEmpty()) {
-                    String or = mp.dataType();
-
-                    JavaType innerJavaType = null;
-                    LOGGER.debug("overriding datatype from " + propType + " to " + or);
-
-                    if (or.toLowerCase().startsWith("list[")) {
-                        String innerType = or.substring(5, or.length() - 1);
-                        ArrayProperty p = new ArrayProperty();
-                        Property primitiveProperty = getPrimitiveProperty(innerType);
-                        if (primitiveProperty != null) {
-                            p.setItems(primitiveProperty);
-                        } else {
-                            innerJavaType = getInnerType(innerType);
-                            p.setItems(context.resolveProperty(innerJavaType, annotations));
-                        }
-                        property = p;
-                    } else if (or.toLowerCase().startsWith("map[")) {
-                        int pos = or.indexOf(",");
-                        if (pos > 0) {
-                            String innerType = or.substring(pos + 1, or.length() - 1);
-                            MapProperty p = new MapProperty();
-                            Property primitiveProperty = getPrimitiveProperty(innerType);
-                            if (primitiveProperty != null) {
-                                p.setAdditionalProperties(primitiveProperty);
-                            } else {
-                                innerJavaType = getInnerType(innerType);
-                                p.setAdditionalProperties(context.resolveProperty(innerJavaType, annotations));
-                            }
-                            property = p;
-                        }
-                    } else {
-                        Property primitiveProperty = getPrimitiveProperty(or);
-                        if (primitiveProperty != null) {
-                            property = primitiveProperty;
-                        } else {
-                            innerJavaType = getInnerType(or);
-                            property = context.resolveProperty(innerJavaType, annotations);
-                        }
-                    }
-                    if (innerJavaType != null) {
-                        context.resolve(innerJavaType);
-                    }
-                }
-
-                // no property from override, construct from propType
-                if (property == null) {
-                    if (mp != null && StringUtils.isNotEmpty(mp.reference())) {
-                        property = new RefProperty(mp.reference());
-                    } else {
-                        property = context.resolveProperty(propType, annotations);
-                    }
-                }
-
-                if (property != null) {
-                    property.setName(propName);
-
-                    if (mp != null && !mp.access().isEmpty()) {
-                        property.setAccess(mp.access());
-                    }
-
-                    Boolean required = md.getRequired();
-                    if (required != null) {
-                        property.setRequired(required);
-                    }
-
-                    String description = _intr.findPropertyDescription(member);
-                    if (description != null && !"".equals(description)) {
-                        property.setDescription(description);
-                    }
-
-                    Integer index = _intr.findPropertyIndex(member);
-                    if (index != null) {
-                        property.setPosition(index);
-                    }
-                    property.setDefault(_findDefaultValue(member));
-                    property.setExample(_findExampleValue(member));
-                    property.setReadOnly(_findReadOnly(member));
-
-                    if (property.getReadOnly() == null) {
-                        if (isReadOnly) {
-                            property.setReadOnly(isReadOnly);
-                        }
-                    }
-
-                    if (property instanceof StringProperty) {
-                        if (mp != null) {
-                            String allowableValues = mp.allowableValues();
-                            LOGGER.debug("allowableValues " + allowableValues);
-                            if (!"".equals(allowableValues)) {
-                                String[] parts = allowableValues.split(",");
-                                LOGGER.debug("found " + parts.length + " parts");
-                                for (String part : parts) {
-                                    if (property instanceof StringProperty) {
-                                        StringProperty sp = (StringProperty) property;
-                                        sp._enum(part.trim());
-                                        LOGGER.debug("added enum value " + part);
-                                    }
+                // hack to avoid clobbering properties with get/is names
+                // it's ugly but gets around https://github.com/swagger-api/swagger-core/issues/415
+                if (propDef.getPrimaryMember() != null) {
+                    java.lang.reflect.Member member = propDef.getPrimaryMember().getMember();
+                    if (member != null) {
+                        String altName = member.getName();
+                        if (altName != null) {
+                            final int length = altName.length();
+                            for (String prefix : Arrays.asList("get", "is")) {
+                                final int offset = prefix.length();
+                                if (altName.startsWith(prefix) && length > offset
+                                        && !Character.isUpperCase(altName.charAt(offset))) {
+                                    propName = altName;
+                                    break;
                                 }
                             }
                         }
                     }
+                }
 
-                    JAXBAnnotationsHelper.apply(member, property);
-                    applyBeanValidatorAnnotations(property, annotations);
-                    props.add(property);
+                PropertyMetadata md = propDef.getMetadata();
+
+                boolean hasSetter = false, hasGetter = false;
+                if (propDef.getSetter() == null) {
+                    hasSetter = false;
+                } else {
+                    hasSetter = true;
+                }
+                if (propDef.getGetter() != null) {
+                    JsonProperty pd = propDef.getGetter().getAnnotation(JsonProperty.class);
+                    if (pd != null) {
+                        hasGetter = true;
+                    }
+                }
+                Boolean isReadOnly = null;
+                if (!hasSetter & hasGetter) {
+                    isReadOnly = Boolean.TRUE;
+                } else {
+                    isReadOnly = Boolean.FALSE;
+                }
+
+                final AnnotatedMember member = propDef.getPrimaryMember();
+
+                if (member != null && !propertiesToIgnore.contains(propName)) {
+                    List<Annotation> annotationList = new ArrayList<Annotation>();
+                    for (Annotation a : member.annotations()) {
+                        annotationList.add(a);
+                    }
+
+                    annotations = annotationList.toArray(new Annotation[annotationList.size()]);
+
+                    ApiModelProperty mp = member.getAnnotation(ApiModelProperty.class);
+
+                    JavaType propType = member.getType(beanDesc.bindingsForBeanType());
+
+                    // allow override of name from annotation
+                    if (mp != null && !mp.name().isEmpty()) {
+                        propName = mp.name();
+                    }
+
+                    if (mp != null && !mp.dataType().isEmpty()) {
+                        String or = mp.dataType();
+
+                        JavaType innerJavaType = null;
+                        LOGGER.debug("overriding datatype from " + propType + " to " + or);
+
+                        if (or.toLowerCase().startsWith("list[")) {
+                            String innerType = or.substring(5, or.length() - 1);
+                            ArrayProperty p = new ArrayProperty();
+                            Property primitiveProperty = getPrimitiveProperty(innerType);
+                            if (primitiveProperty != null) {
+                                p.setItems(primitiveProperty);
+                            } else {
+                                innerJavaType = getInnerType(innerType);
+                                p.setItems(context.resolveProperty(innerJavaType, annotations));
+                            }
+                            property = p;
+                        } else if (or.toLowerCase().startsWith("map[")) {
+                            int pos = or.indexOf(",");
+                            if (pos > 0) {
+                                String innerType = or.substring(pos + 1, or.length() - 1);
+                                MapProperty p = new MapProperty();
+                                Property primitiveProperty = getPrimitiveProperty(innerType);
+                                if (primitiveProperty != null) {
+                                    p.setAdditionalProperties(primitiveProperty);
+                                } else {
+                                    innerJavaType = getInnerType(innerType);
+                                    p.setAdditionalProperties(context.resolveProperty(innerJavaType, annotations));
+                                }
+                                property = p;
+                            }
+                        } else {
+                            Property primitiveProperty = getPrimitiveProperty(or);
+                            if (primitiveProperty != null) {
+                                property = primitiveProperty;
+                            } else {
+                                innerJavaType = getInnerType(or);
+                                property = context.resolveProperty(innerJavaType, annotations);
+                            }
+                        }
+                        if (innerJavaType != null) {
+                            context.resolve(innerJavaType);
+                        }
+                    }
+
+                    // no property from override, construct from propType
+                    if (property == null) {
+                        if (mp != null && StringUtils.isNotEmpty(mp.reference())) {
+                            property = new RefProperty(mp.reference());
+                        } else {
+                            property = context.resolveProperty(propType, annotations);
+                        }
+                    }
+
+                    if (property != null) {
+                        property.setName(propName);
+
+                        if (mp != null && !mp.access().isEmpty()) {
+                            property.setAccess(mp.access());
+                        }
+
+                        Boolean required = md.getRequired();
+                        if (required != null) {
+                            property.setRequired(required);
+                        }
+
+                        String description = _intr.findPropertyDescription(member);
+                        if (description != null && !"".equals(description)) {
+                            property.setDescription(description);
+                        }
+
+                        Integer index = _intr.findPropertyIndex(member);
+                        if (index != null) {
+                            property.setPosition(index);
+                        }
+                        property.setDefault(_findDefaultValue(member));
+                        property.setExample(_findExampleValue(member));
+                        property.setReadOnly(_findReadOnly(member));
+
+                        if (property.getReadOnly() == null) {
+                            if (isReadOnly) {
+                                property.setReadOnly(isReadOnly);
+                            }
+                        }
+
+                        if (property instanceof StringProperty) {
+                            if (mp != null) {
+                                String allowableValues = mp.allowableValues();
+                                LOGGER.debug("allowableValues " + allowableValues);
+                                if (!"".equals(allowableValues)) {
+                                    String[] parts = allowableValues.split(",");
+                                    LOGGER.debug("found " + parts.length + " parts");
+                                    for (String part : parts) {
+                                        if (property instanceof StringProperty) {
+                                            StringProperty sp = (StringProperty) property;
+                                            sp._enum(part.trim());
+                                            LOGGER.debug("added enum value " + part);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        JAXBAnnotationsHelper.apply(member, property);
+                        applyBeanValidatorAnnotations(property, annotations);
+                        props.add(property);
+                    }
                 }
             }
         }
@@ -426,6 +428,15 @@ public class ModelResolver extends AbstractModelConverter implements ModelConver
         }
         model.setProperties(modelProps);
         return model;
+    }
+
+    private boolean isPropertyThrowable(BeanPropertyDefinition propDef) {
+        if (java.lang.Throwable.class.equals(propDef.getGetter() != null ? propDef.getGetter().getDeclaringClass() : null) ||
+                java.lang.Throwable.class.equals(propDef.getField() != null ? propDef.getField().getDeclaringClass() : null) ||
+                java.lang.Throwable.class.equals(propDef.getSetter() != null ? propDef.getSetter().getDeclaringClass() : null)) {
+            return true;
+        }
+        return false;
     }
 
     protected void applyBeanValidatorAnnotations(Property property, Annotation[] annotations) {

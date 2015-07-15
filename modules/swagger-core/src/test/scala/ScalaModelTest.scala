@@ -160,4 +160,11 @@ class ScalaModelTest extends FlatSpec with Matchers {
   }
 }""")
   }
+
+  it should "not include Throwable to the model" in {
+    val models = ModelConverters.getInstance().readAll(classOf[ModelInheritedThrowable])
+    models.containsKey("Person") should be(true)
+    models.containsKey("Throwable") should be(false)
+    models.containsKey("StackTraceElement") should be(false)
+  }
 }
