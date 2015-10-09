@@ -411,4 +411,14 @@ public class ParameterSerializationTest {
         final String json = "{\"in\":\"query\",\"required\":false,\"type\":\"number\",\"default\":\"test\",\"format\":\"double\"}";
         SerializationMatchers.assertEqualsToJson(param, json);
     }
+
+    @Test(description = "should serialize integer value")
+    public void testIntegerValue() {
+        final QueryParameter param = new QueryParameter();
+        param.setDefaultValue("1");
+        param.setType("integer");
+        param.setFormat("int32");
+        final String json = "{\"in\":\"query\",\"required\":false,\"type\":\"integer\",\"default\":1,\"format\":\"int32\"}";
+        SerializationMatchers.assertEqualsToJson(param, json);
+    }
 }
