@@ -2,7 +2,7 @@
   "swagger" : "2.0",
   "info" : {
     "version" : "0.0.1",
-    "title" : "gitHub-push",
+    "title" : "gitHub-push 2",
     "description" : "gitHub-push"
   },
   "paths" : { }
