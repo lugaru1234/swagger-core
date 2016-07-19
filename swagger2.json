@@ -1,9 +1,3 @@
 {
-  "swagger" : "2.0",
-  "info" : {
-    "version" : "0.0.1",
-    "title" : "gitHub-push 456",
-    "description" : "gitHub-push"
-  },
-  "paths" : { }
+  "swagger" : "2.0"
 }
